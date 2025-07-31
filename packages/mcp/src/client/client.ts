@@ -98,7 +98,7 @@ type HttpServerDefinition = BaseServerOptions & {
 
 // Custom Transport Server Definition
 type CustomTransportServerDefinition = BaseServerOptions & {
-  customTransport: StreamableHTTPClientTransport; // Custom transport is required
+  customTransport: Transport; // Custom transport is required
   
   // Exclude all other transport options when using custom transport
   command?: never;
@@ -254,14 +254,14 @@ export class InternalMastraMCPClient extends MastraBase {
     }
   }
 
-  private async connectCustomTransport(transport: StreamableHTTPClientTransport) {
-    this.log('debug', 'Connecting using custom StreamableHTTPClientTransport...');
+  private async connectCustomTransport(transport: Transport) {
+    this.log('debug', 'Connecting using custom transport...');
     try {
       await this.client.connect(transport, {
         timeout: this.serverConfig.timeout ?? this.timeout,
       });
       this.transport = transport;
-      this.log('debug', 'Successfully connected using custom StreamableHTTPClientTransport.');
+      this.log('debug', 'Successfully connected using custom transport.');
     } catch (error) {
       this.log('error', `Failed to connect with custom transport: ${error}`);
       throw error;
