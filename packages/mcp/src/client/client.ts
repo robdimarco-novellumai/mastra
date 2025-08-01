@@ -268,12 +268,7 @@ export class InternalMastraMCPClient extends MastraBase {
     }
   }
 
-  private async connectHttp(url: URL) {
-    // Type guard to ensure we have HTTP server config
-    if (!('requestInit' in this.serverConfig)) {
-      throw new Error('Invalid server configuration for HTTP transport. The requestInit property is required for the basic HTTP transport. If you are using a custom transport, please use the customTransport property instead.');
-    }
-    
+  private async connectHttp(url: URL) {    
     const { requestInit, eventSourceInit } = this.serverConfig as HttpServerDefinition;
 
     this.log('debug', `Attempting to connect to URL: ${url}`);
