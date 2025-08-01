@@ -48,7 +48,7 @@ const mcp = new MCPClient({
 
 ```typescript
 class CustomStreamableHTTPClientTransport extends StreamableHTTPClientTransport {
-  constructor(url: URL, options?: any) {
+  constructor(url: URL, options?: StreamableHTTPClientTransportOptions) {
     super(url, options);
   }
 
