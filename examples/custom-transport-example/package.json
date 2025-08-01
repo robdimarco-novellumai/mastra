@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Example demonstrating custom StreamableHTTPClientTransport usage",
   "main": "src/index.ts",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts",
