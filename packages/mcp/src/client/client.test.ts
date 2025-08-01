@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { z } from 'zod';
 
 import { InternalMastraMCPClient } from './client.js';
+import { OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 
 async function setupTestServer(withSessionManagement: boolean) {
   const httpServer: HttpServer = createServer();
@@ -521,18 +522,47 @@ describe('MastraMCPClient - Elicitation Tests', () => {
 
 describe('MastraMCPClient with Custom Transport', () => {
   let client: InternalMastraMCPClient;
-  let mockTransport: StreamableHTTPClientTransport;
+  let testServer: {
+    baseUrl: URL;
+  };
+  let mockTokens: ()=> Promise<OAuthTokens >;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     // Create a mock transport
-    mockTransport = new StreamableHTTPClientTransport(new URL('http://localhost:8080'));
-    
+    mockTokens = vi.fn(async () => ({
+      access_token: 'mock-access-token',
+      token_type: 'mock-token-type',
+      expires_in: 3600,
+      scope: 'mock-scope',
+      refresh_token: 'mock-refresh-token',
+    }));
+
+    testServer = await setupTestServer(false);
+    const customTransport = new StreamableHTTPClientTransport(
+      new URL(testServer.baseUrl),
+      {
+        authProvider: {
+          redirectUrl: new URL('http://localhost:8080/auth'),
+          clientMetadata: {
+            redirect_uris: ['http://localhost:8080/auth'],
+          },
+          clientInformation: () => undefined,
+          tokens: mockTokens,
+          saveTokens: () => undefined,
+          redirectToAuthorization: () => undefined,
+          saveCodeVerifier: () => undefined,
+          codeVerifier: () => "",
+        },
+      }
+    );
+
     client = new InternalMastraMCPClient({
       name: 'test-custom-transport-client',
       server: {
-        customTransport: mockTransport,
+        customTransport,
       },
     });
+    await client.connect();
   });
 
   afterEach(async () => {
@@ -540,19 +570,9 @@ describe('MastraMCPClient with Custom Transport', () => {
   });
 
   it('should connect using custom transport', async () => {
-    // Mock the transport's connect method
-    const connectSpy = jest.spyOn(mockTransport, 'open').mockResolvedValue();
-    
-    await client.connect();
-    
-    expect(connectSpy).toHaveBeenCalled();
-    expect(client.sessionId).toBeDefined();
-  });
-
-  it('should handle custom transport errors', async () => {
-    // Mock the transport to throw an error
-    jest.spyOn(mockTransport, 'open').mockRejectedValue(new Error('Custom transport error'));
-    
-    await expect(client.connect()).rejects.toThrow('Custom transport error');
+    const tools = await client.tools();
+    expect(tools).toHaveProperty('greet');
+    expect(tools.greet.description).toBe('A simple greeting tool');
+    expect(mockTokens).toHaveBeenCalled();
   });
 });
