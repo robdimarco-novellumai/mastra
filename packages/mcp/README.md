@@ -475,6 +475,74 @@ const sseClient = new MastraMCPClient({
 });
 ```
 
+## Custom Transport
+
+For advanced use cases, you can provide a custom transport implementation that bypasses the automatic transport selection logic:
+
+```typescript
+import { MCPClient } from '@mastra/mcp';
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+
+// Example: Custom transport with special authentication
+class CustomAuthTransport implements Transport {
+  // Implementation details...
+  async start() { /* ... */ }
+  async send(message) { /* ... */ }
+  async close() { /* ... */ }
+  // ... other Transport interface methods
+}
+
+const customClient = new MCPClient({
+  servers: {
+    myCustomServer: {
+      url: new URL('https://example.com/mcp'),
+      customTransport: new CustomAuthTransport(), // Your Transport implementation
+    },
+  },
+});
+```
+
+### When to Use Custom Transport
+
+This is useful for:
+- **Custom authentication mechanisms** - Implement specialized auth flows
+- **Alternative transport protocols** - Use WebSocket, custom streaming, etc.
+- **Testing with mock transports** - Create predictable test environments
+- **Advanced networking configurations** - Custom retry logic, connection pooling, etc.
+
+### How It Works
+
+When `customTransport` is provided:
+1. The automatic transport selection (Streamable HTTP → SSE fallback) is completely bypassed
+2. Your custom transport is used directly for all communication
+3. Standard HTTP options like `requestInit` and `eventSourceInit` are ignored
+4. Connection timeout and other client options are still respected
+
+```typescript
+// Example: Mock transport for testing
+const mockTransport = {
+  start: async () => {},
+  send: async (message) => {
+    console.log('Mock sending:', message);
+  },
+  close: async () => {},
+  onmessage: undefined,
+  onclose: undefined,
+  onerror: undefined,
+};
+
+const testClient = new MCPClient({
+  servers: {
+    testServer: {
+      url: new URL('http://test.example.com'),
+      customTransport: mockTransport,
+    },
+  },
+});
+```
+
+**Note:** `customTransport` is only available for HTTP server configurations (with `url`), not for Stdio servers (with `command`).
+
 ## Configuration (`MastraMCPServerDefinition`)
 
 The `server` parameter for both `MastraMCPClient` and `MCPConfiguration` uses the `MastraMCPServerDefinition` type. The client automatically detects the transport type based on the provided parameters:
@@ -495,6 +563,7 @@ Here are the available options within `MastraMCPServerDefinition`:
 - **`timeout`**: (Optional, number) Server-specific timeout in milliseconds, overriding the global client/configuration timeout.
 - **`capabilities`**: (Optional, ClientCapabilities) Server-specific capabilities configuration.
 - **`enableServerLogs`**: (Optional, boolean, default: `true`) Whether to enable logging for this server.
+- **`customTransport`**: (Optional, Transport) **Only for HTTP servers**: Custom transport implementation to use instead of the default HTTP transports. When provided, bypasses automatic transport selection (Streamable HTTP → SSE fallback). Useful for custom authentication, alternative protocols, testing, or advanced networking configurations.
 
 ## Features
 

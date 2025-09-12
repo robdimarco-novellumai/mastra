@@ -124,6 +124,12 @@ Each server in the `servers` map is configured using the `MastraMCPServerDefinit
       defaultValue: "true",
       description: "Whether to enable logging for this server.",
     },
+    {
+      name: "customTransport",
+      type: "Transport",
+      isOptional: true,
+      description: "Custom transport implementation to use instead of the default HTTP transports. When provided, bypasses automatic transport selection (Streamable HTTP → SSE fallback). Only available for HTTP servers (with 'url'). Useful for custom authentication, alternative protocols, testing, or advanced networking configurations.",
+    },
   ]}
 />
 
@@ -616,6 +622,52 @@ await mcpClient.elicitation.onRequest('interactiveServer', async (request) => {
 - **Respect user choice**: Handle decline and cancel responses gracefully
 - **Clear UI**: Make it obvious what information is being requested and why
 - **Security**: Never auto-accept requests for sensitive information
+
+## Custom Transport
+
+For advanced use cases, you can provide a custom transport implementation to any HTTP server configuration using the `customTransport` option. This bypasses the automatic transport selection logic.
+
+```typescript
+import { MCPClient } from '@mastra/mcp';
+import { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
+
+// Example: Custom transport implementation
+class CustomAuthTransport implements Transport {
+  async start() { /* Custom connection logic */ }
+  async send(message) { /* Custom message sending */ }
+  async close() { /* Custom cleanup */ }
+  onmessage?: (message) => void;
+  onclose?: () => void;
+  onerror?: (error: Error) => void;
+  sessionId?: string;
+}
+
+const mcpClient = new MCPClient({
+  servers: {
+    customServer: {
+      url: new URL('https://example.com/mcp'),
+      customTransport: new CustomAuthTransport(),
+    },
+  },
+});
+```
+
+### Use Cases
+
+- **Custom Authentication**: Implement specialized authentication flows
+- **Alternative Protocols**: Use WebSocket, custom streaming protocols, etc.
+- **Testing**: Create mock transports for predictable testing
+- **Advanced Networking**: Custom retry logic, connection pooling, etc.
+
+### Behavior
+
+When `customTransport` is provided:
+- Automatic transport selection (Streamable HTTP → SSE fallback) is bypassed
+- Standard HTTP options (`requestInit`, `eventSourceInit`, `authProvider`) are ignored
+- The custom transport handles all communication
+- Client-level options like `timeout` are still respected
+
+**Note**: `customTransport` is only available for HTTP server configurations (those with `url`). It cannot be used with Stdio servers (those with `command`).
 
 ## Examples
 
