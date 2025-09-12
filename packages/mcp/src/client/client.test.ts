@@ -514,6 +514,162 @@ describe('MastraMCPClient - Elicitation Tests', () => {
   });
 });
 
+describe('MastraMCPClient - Custom Transport Tests', () => {
+  let testServer: {
+    httpServer: HttpServer;
+    mcpServer: McpServer;
+    serverTransport: StreamableHTTPServerTransport;
+    baseUrl: URL;
+  };
+  let client: InternalMastraMCPClient;
+
+  beforeEach(async () => {
+    testServer = await setupTestServer(false);
+  });
+
+  afterEach(async () => {
+    await client?.disconnect().catch(() => {});
+    await testServer?.mcpServer.close().catch(() => {});
+    await testServer?.serverTransport.close().catch(() => {});
+    testServer?.httpServer.close();
+  });
+
+  it('should use custom transport when provided', async () => {
+    // Create a mock transport that implements the Transport interface
+    const mockTransport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      sessionId: 'custom-session-123',
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+      setProtocolVersion: vi.fn(),
+    };
+
+    client = new InternalMastraMCPClient({
+      name: 'custom-transport-client',
+      server: {
+        url: testServer.baseUrl,
+        customTransport: mockTransport,
+      },
+    });
+
+    // Mock the client.connect method to track if our transport was used
+    const connectSpy = vi.spyOn(client['client'], 'connect').mockResolvedValue();
+
+    await client.connect();
+
+    // Verify the custom transport was passed to client.connect
+    expect(connectSpy).toHaveBeenCalledWith(mockTransport, {
+      timeout: expect.any(Number),
+    });
+
+    // Verify the transport was stored
+    expect(client['transport']).toBe(mockTransport);
+  });
+
+  it('should handle custom transport connection failures gracefully', async () => {
+    const mockTransport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      sessionId: 'failing-transport',
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+      setProtocolVersion: vi.fn(),
+    };
+
+    client = new InternalMastraMCPClient({
+      name: 'failing-custom-transport-client',
+      server: {
+        url: testServer.baseUrl,
+        customTransport: mockTransport,
+      },
+    });
+
+    const connectionError = new Error('Custom transport connection failed');
+    vi.spyOn(client['client'], 'connect').mockRejectedValue(connectionError);
+
+    await expect(client.connect()).rejects.toThrow('Custom transport connection failed');
+  });
+
+  it('should respect timeout setting with custom transport', async () => {
+    const mockTransport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+      setProtocolVersion: vi.fn(),
+    };
+
+    const customTimeout = 5000;
+    client = new InternalMastraMCPClient({
+      name: 'custom-timeout-transport-client',
+      server: {
+        url: testServer.baseUrl,
+        customTransport: mockTransport,
+        timeout: customTimeout,
+      },
+    });
+
+    const connectSpy = vi.spyOn(client['client'], 'connect').mockResolvedValue();
+    await client.connect();
+
+    expect(connectSpy).toHaveBeenCalledWith(mockTransport, {
+      timeout: customTimeout,
+    });
+  });
+
+  it('should fall back to default HTTP transports when no custom transport provided', async () => {
+    client = new InternalMastraMCPClient({
+      name: 'no-custom-transport-client',
+      server: {
+        url: testServer.baseUrl,
+      },
+    });
+
+    await client.connect();
+    
+    // Should successfully connect using default transport selection
+    const tools = await client.tools();
+    expect(tools).toHaveProperty('greet');
+  });
+
+  it('should preserve sessionId from custom transport', async () => {
+    const customSessionId = 'my-custom-session-456';
+    const mockTransport = {
+      start: vi.fn().mockResolvedValue(undefined),
+      send: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+      sessionId: customSessionId,
+      onclose: undefined,
+      onerror: undefined,
+      onmessage: undefined,
+      setProtocolVersion: vi.fn(),
+    };
+
+    client = new InternalMastraMCPClient({
+      name: 'session-id-custom-transport-client',
+      server: {
+        url: testServer.baseUrl,
+        customTransport: mockTransport,
+      },
+    });
+
+    vi.spyOn(client['client'], 'connect').mockResolvedValue();
+    await client.connect();
+
+    // Since we're using a mock transport, sessionId getter won't work the same way
+    // but we can verify the transport was stored correctly
+    expect(client['transport']).toBe(mockTransport);
+    expect(client['transport']!.sessionId).toBe(customSessionId);
+  });
+});
+
 describe('MastraMCPClient - AuthProvider Tests', () => {
   let testServer: {
     httpServer: HttpServer;
