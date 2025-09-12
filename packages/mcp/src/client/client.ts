@@ -95,6 +95,17 @@ type HttpServerDefinition = BaseServerOptions & {
   authProvider?: StreamableHTTPClientTransportOptions['authProvider'];
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
+  /**
+   * Custom transport implementation to use instead of the default HTTP transports.
+   * When provided, the client will use this transport directly and skip the
+   * automatic transport selection logic (Streamable HTTP → SSE fallback).
+   * 
+   * This is useful for:
+   * - Custom authentication mechanisms
+   * - Alternative transport protocols (e.g., WebSocket)
+   * - Testing with mock transports
+   * - Advanced networking configurations
+   */
   customTransport?: Transport; 
 };
 
@@ -246,12 +257,19 @@ export class InternalMastraMCPClient extends MastraBase {
     this.log('debug', `Attempting to connect to URL: ${url}`);
 
     if (customTransport) {
-      await this.client.connect(customTransport, { 
-        timeout: this.serverConfig.timeout ?? this.timeout 
-      });
-      this.transport = customTransport;
-      this.log('debug', 'Successfully connected using custom transport.');
-      return;
+      try {
+        await this.client.connect(customTransport, { 
+          timeout: this.serverConfig.timeout ?? this.timeout 
+        });
+        this.transport = customTransport;
+        this.log('debug', 'Successfully connected using custom transport.');
+        return;
+      } catch (error) {
+        this.log('error', 'Failed to connect using custom transport', { 
+          error: error instanceof Error ? error.stack : JSON.stringify(error) 
+        });
+        throw error;
+      }
     }
 
     // Assume /sse means sse.
