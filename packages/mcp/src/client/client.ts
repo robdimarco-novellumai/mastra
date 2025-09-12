@@ -78,6 +78,7 @@ type StdioServerDefinition = BaseServerOptions & {
   authProvider?: never; // Exclude HTTP options for Stdio
   reconnectionOptions?: never; // Exclude Streamable HTTP specific options
   sessionId?: never; // Exclude Streamable HTTP specific options
+  customTransport?: never; // Exclude custom transport for Stdio
 };
 
 // HTTP Server Definition (Streamable HTTP or SSE fallback)
@@ -94,6 +95,7 @@ type HttpServerDefinition = BaseServerOptions & {
   authProvider?: StreamableHTTPClientTransportOptions['authProvider'];
   reconnectionOptions?: StreamableHTTPClientTransportOptions['reconnectionOptions'];
   sessionId?: StreamableHTTPClientTransportOptions['sessionId'];
+  customTransport?: Transport; 
 };
 
 export type MastraMCPServerDefinition = StdioServerDefinition | HttpServerDefinition;
@@ -239,9 +241,18 @@ export class InternalMastraMCPClient extends MastraBase {
   }
 
   private async connectHttp(url: URL) {
-    const { requestInit, eventSourceInit, authProvider } = this.serverConfig;
+    const { requestInit, eventSourceInit, authProvider, customTransport } = this.serverConfig;
 
     this.log('debug', `Attempting to connect to URL: ${url}`);
+
+    if (customTransport) {
+      await this.client.connect(customTransport, { 
+        timeout: this.serverConfig.timeout ?? this.timeout 
+      });
+      this.transport = customTransport;
+      this.log('debug', 'Successfully connected using custom transport.');
+      return;
+    }
 
     // Assume /sse means sse.
     let shouldTrySSE = url.pathname.endsWith(`/sse`);
